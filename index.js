@@ -2,13 +2,13 @@ const express = require('express')
 const app = express()
 require('dotenv').config()
 const cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb')
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const morgan = require('morgan')
 const port = process.env.PORT || 5000
 
 // middleware
 const corsOptions = {
-      origin: ['http://localhost:5173', 'https://happy_users.web.app'],
+      origin: ['http://localhost:5173', 'http://localhost:5174', 'https://happy_users.web.app'],
       credentials: true,
       optionSuccessStatus: 200,
 }
@@ -26,6 +26,7 @@ const client = new MongoClient(process.env.DB_URI, {
 async function run() {
       try {
             const usersCollection = client.db("HappyUsersDB").collection("users");
+            const teammatesCollection = client.db("HappyUsersDB").collection("teammates");
 
             // Save or modify user email, status in DB
             app.put('/users/:email', async (req, res) => {
@@ -50,6 +51,63 @@ async function run() {
                   const user = req.body;
 
                   const result = await usersCollection.insertOne(user)
+                  res.send(result)
+            })
+
+            app.post('/api/v1/teammates', async (req, res) => {
+                  const teammate = req.body;
+
+                  const result = await teammatesCollection.insertOne(teammate);
+                  res.send(result)
+            })
+
+            app.get('/api/v1/teammates/:email', async (req, res) => {
+                  const leaderEmail = req.params.email
+                  const query = { active: true, leader: leaderEmail }
+                  const sort = JSON.parse(req.query.sort)
+                  console.log(sort)
+
+                  const cursor = teammatesCollection.find(query)
+                  const result = await cursor.toArray()
+
+                  // Parse the addedTime strings into Date objects
+
+                  if (sort) {
+                        // result.forEach(item => {
+                        //       item.addedTime = new Date(item.addedTime);
+                        // });
+
+                        // // Sort the array based on the parsed Date objects
+                        // const sorted = result.sort((a, b) => a.addedTime - b.addedTime);
+                        const sorted = result.reverse();
+                        return res.send(sorted)
+                  } else {
+                        res.send(result)
+                  }
+            })
+
+
+
+            app.patch('/api/v1/make_inactive/:_id', async (req, res) => {
+                  const _id = req.params._id;
+                  const query = { _id: new ObjectId(_id) };
+                  const options = { upsert: true }
+
+                  const teammate = {
+                        $set: {
+                              active: false,
+                        }
+                  }
+
+                  const result = await teammatesCollection.updateOne(query, teammate, options);
+                  res.send(result)
+            })
+
+            app.delete('/api/v1/delete_teammate/:_id', async (req, res) => {
+                  const _id = req.params._id;
+                  const query = { _id: new ObjectId(_id) }
+
+                  const result = await teammatesCollection.deleteOne(query);
                   res.send(result)
             })
 
